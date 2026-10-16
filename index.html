@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl" class="w-full h-full m-0 p-0 overflow-hidden">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>ربيع الإيمان - مسابقات إسلامية</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700;900&display=swap" rel="stylesheet">
+    <style>
+        * { box-sizing: border-box; }
+        html, body {
+            font-family: 'Cairo', sans-serif;
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: manipulation;
+            overflow: hidden;
+            background: linear-gradient(135deg, #fbcfe8 0%, #fed7aa 50%, #bae6fd 100%);
+            margin: 0; padding: 0; width: 100%; height: 100%; min-height: 100%;
+        }
+        html, body { height: var(--app-h, 100dvh) !important; }
+        body { display: flex; flex-direction: column; padding-bottom: env(safe-area-inset-bottom, 0px); }
+        header, footer { flex-shrink: 0; }
+        main { flex: 1 1 auto; min-height: 0; min-width: 0; width: 100%; }
+        #gameCanvas { display: block; width: 100%; height: 100%; flex: 1 1 auto; }
+        @media (max-width: 640px) {
+            header { padding: 4px 8px !important; gap: 2px; }
+            header h1 { font-size: 12px !important; }
+            header p { font-size: 9px !important; }
+            footer { padding: 4px 8px !important; gap: 2px !important; }
+            footer button { padding: 6px 4px !important; font-size: 13px !important; }
+            #currentQuestionBanner { font-size: 12px !important; padding: 6px 10px !important; line-height: 1.5 !important; }
+            main > div.absolute.top-3 { top: 4px !important; width: 98% !important; }
+        }
+        .bouncing { animation: bounce 2s infinite; }
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-8px); }
+        }
+    </style>
+    <script>
+        // ارتفاع الشاشة الفعلي المرئي (يتجاوز مشكلة شريط عنوان كروم في الموبايل)
+        function setAppHeight() {
+            const h = (window.visualViewport ? window.visualViewport.height : window.innerHeight);
+            document.documentElement.style.setProperty('--app-h', h + 'px');
+        }
+        setAppHeight();
+        window.addEventListener('resize', setAppHeight);
+        window.addEventListener('orientationchange', () => setTimeout(setAppHeight, 200));
+        if (window.visualViewport) window.visualViewport.addEventListener('resize', setAppHeight);
+    </script>
+</head>
+<body class="w-full m-0 p-0 flex flex-col justify-between items-center overflow-hidden bg-gradient-to-br from-pink-100 via-orange-100 to-sky-100">
+
+    <header class="w-full bg-white/95 backdrop-blur-md px-4 sm:px-6 py-2.5 flex justify-between items-center z-10 border-b-4 border-pink-300 shrink-0">
+        <div class="flex items-center gap-2 sm:gap-3">
+            <span class="text-2xl sm:text-3xl">🧺</span>
+            <div>
+                <h1 class="text-sm sm:text-lg font-black text-pink-600 leading-tight">ربيع الإيمان - مسابقات إسلامية</h1>
+                <p class="text-[10px] sm:text-xs text-gray-500 font-bold">لعبة تعليمية ممتعة</p>
+            </div>
+        </div>
+        <div class="flex gap-2 sm:gap-3 items-center">
+            <div class="bg-pink-100 px-3 py-1.5 rounded-full border-2 border-pink-400 text-pink-800 font-black text-xs sm:text-sm shadow-inner">
+                النقاط: <span id="scoreVal">0</span>
+            </div>
+        </div>
+    </header>
+
+    <main class="relative w-full flex-1 bg-transparent overflow-hidden cursor-pointer flex flex-col">
+        <div class="absolute top-2 left-1/2 transform -translate-x-1/2 flex flex-col items-center gap-1 z-10 w-11/12 max-w-3xl">
+            <div class="flex items-center gap-2 w-full">
+                <div id="currentQuestionBanner" class="bg-white/95 px-4 py-2.5 rounded-2xl shadow-md border-2 border-pink-400 text-pink-700 font-black text-xs sm:text-sm text-center flex-1 whitespace-normal leading-relaxed overflow-hidden">
+                    السؤال يظهر هنا...
+                </div>
+            </div>
+            <div class="w-full bg-white/80 rounded-full h-2.5 overflow-hidden border border-pink-300 shadow-inner flex justify-between items-center px-1">
+                <div id="timerBar" class="bg-gradient-to-r from-pink-500 to-purple-500 h-1.5 rounded-full w-full transition-all duration-1000"></div>
+                <span id="timerVal" class="text-[10px] font-black text-pink-600 mr-1">25ث</span>
+            </div>
+        </div>
+
+        <canvas id="gameCanvas" class="w-full h-full block flex-1"></canvas>
+        
+        <div id="overlay" class="absolute inset-0 bg-black/40 backdrop-blur-sm flex flex-col items-center justify-center text-center p-6 z-20 transition-all duration-300">
+            <div class="bg-white p-6 sm:p-8 rounded-3xl shadow-2xl border-4 border-pink-400 max-w-sm sm:max-w-md w-full bouncing">
+                <div id="overlayIcon" class="text-6xl mb-2">⭐</div>
+                <h2 id="overlayTitle" class="text-xl sm:text-2xl font-black text-pink-600 mb-2">أهلاً بك في لعبة ربيع الإيمان!</h2>
+                <p id="overlayDesc" class="text-xs sm:text-sm text-gray-600 mb-4 font-bold">جميع الأسئلة والإجابات مطابقة للمقرر المدرسي!</p>
+                <div class="text-[11px] text-purple-700 font-black bg-pink-50 py-1.5 px-3 rounded-xl mb-4 border border-pink-200">
+                    تصميم مروه ابوبكر
+                </div>
+                <button id="actionBtn" onclick="startGame()" class="w-full py-3 bg-gradient-to-r from-pink-500 to-purple-500 text-white font-black text-base rounded-2xl shadow-lg transform active:scale-95 transition hover:brightness-110 border-b-4 border-pink-700">
+                    ابدأ اللعبة الآن! 🚀
+                </button>
+            </div>
+        </div>
+    </main>
+
+    <footer class="w-full bg-white/95 px-4 py-2 flex flex-col gap-1.5 z-10 border-t-4 border-pink-300 shrink-0">
+        <div class="flex justify-between gap-4">
+            <button id="leftBtn" class="flex-1 bg-white active:bg-pink-300 text-pink-700 py-3 rounded-2xl shadow-lg border-b-4 border-pink-300 font-black text-base sm:text-lg flex justify-center items-center transition">
+                ◀️ يسار
+            </button>
+            <button id="rightBtn" class="flex-1 bg-white active:bg-pink-300 text-pink-700 py-3 rounded-2xl shadow-lg border-b-4 border-pink-300 font-black text-base sm:text-lg flex justify-center items-center transition">
+                يمين ▶️
+            </button>
+        </div>
+        <div class="text-center flex justify-center items-center gap-2">
+            <span class="text-[11px] sm:text-xs font-black text-purple-700 bg-pink-50 px-3 py-0.5 rounded-full shadow-sm border border-pink-200 inline-block">
+                ✨ ربيع الإيمان ✨
+            </span>
+            <div class="flex flex-col items-center leading-tight">
+                <span class="text-[11px] sm:text-xs font-black text-pink-700 bg-purple-50 px-3 py-0.5 rounded-full shadow-sm border border-purple-200 inline-block">
+                    تصميم مروه ابوبكر
+                </span>
+                <span class="text-[10px] sm:text-[11px] font-bold text-purple-700 mt-0.5">
+                    أكاديمية التعزيز
+                </span>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        const scoreVal = document.getElementById('scoreVal');
+        const overlay = document.getElementById('overlay');
+        const overlayIcon = document.getElementById('overlayIcon');
+        const overlayTitle = document.getElementById('overlayTitle');
+        const overlayDesc = document.getElementById('overlayDesc');
+        const actionBtn = document.getElementById('actionBtn');
+        const currentQuestionBanner = document.getElementById('currentQuestionBanner');
+        const timerBar = document.getElementById('timerBar');
+        const timerVal = document.getElementById('timerVal');
+
+        let score = 0;
+        let gameRunning = false;
+        let animationFrameId = null;
+        let timeLeft = 25;
+        let gameTimerInterval = null;
+        let questionLocked = false;
+
+        const questionsWithAnswers = [
+            {
+                question: "العامل الذي كان يساعد النبي صلى الله عليه وسلم في التجارة هو؟",
+                correct: ["ميسرة"],
+                incorrect: ["بلال", "عمرو", "سعد"]
+            },
+            {
+                question: "ما هو عمر النبي صلى الله عليه وسلم عندما خرج في التجارة إلى الشام؟",
+                correct: ["15 سنة"],
+                incorrect: ["30 سنة", "20 سنة", "10 سنوات"]
+            },
+            {
+                question: "عدد آيات سورة الزلزلة المباركة؟",
+                correct: ["8 آيات"],
+                incorrect: ["9 آيات", "7 آيات", "10 آيات"]
+            },
+            {
+                question: "من صفات رسولنا محمد صلى الله عليه وسلم قبل البعثة؟",
+                correct: ["الأمانة والصدق"],
+                incorrect: ["الكذب", "الغضب", "الخيانة"]
+            },
+            {
+                question: "ماذا تستنتج من قوله تعالى: (إن الصلاة كانت على المؤمنين كتاباً موقوتاً)؟",
+                correct: ["لكل صلاة وقت محدد"],
+                incorrect: ["الصلاة بأي وقت", "وقت النوم فقط", "لا أثر للوقت"]
+            },
+            {
+                question: "كيف تتصرف إذا رأيت زميلك يرمي بقايا الطعام في ساحة المدرسة؟",
+                correct: ["أنصح زميلي بأدب"],
+                incorrect: ["أتركه بلا توجيه", "أصرخ في وجهه", "أرمي الطعام معه"]
+            },
+            {
+                question: "في درس النملة، ماذا تعلمنَا من تعاون النمل واجتهاده؟",
+                correct: ["التعاون والعمل الجماعي"],
+                incorrect: ["الكسل والنوم", "التفرّق والخصام", "ترك العمل"]
+            },
+            {
+                question: "كم عدد الصلوات المفروضة في اليوم والليلة؟",
+                correct: ["5 صلوات"],
+                incorrect: ["3 صلوات", "4 صلوات", "6 صلوات"]
+            },
+            {
+                question: "ما حكم تعاون المسلمين في البر والتقوى؟",
+                correct: ["مأمورون به ومحبوب"],
+                incorrect: ["مكروه ومنهي عنه", "محرم شرعاً", "غير مهم"]
+            }
+        ];
+
+        let currentQIndex = 0;
+
+        let player = {
+            x: 0,
+            y: 0,
+            width: 140,
+            height: 58,
+            speed: 12
+        };
+
+        let items = [];
+        let particles = [];
+        let caughtPopups = [];
+        let pendingAnswers = [];
+        let spawnTimer = 0;
+        let gameRunId = 0;
+
+        function resizeCanvas() {
+            const rect = canvas.getBoundingClientRect();
+            const dpr = Math.min(window.devicePixelRatio || 1, 2);
+            canvas.width = Math.max(1, Math.round(rect.width * dpr));
+            canvas.height = Math.max(1, Math.round(rect.height * dpr));
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+            canvas._logicalWidth = rect.width;
+            canvas._logicalHeight = rect.height;
+            player.y = rect.height - player.height - 15;
+            if (!gameRunning) {
+                player.x = rect.width / 2 - player.width / 2;
+            }
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        const synth = new Tone.Synth().toDestination();
+        function playSound(note, duration = '8n') {
+            try {
+                if (Tone.context.state !== 'running') {
+                    Tone.start();
+                }
+                synth.triggerAttackRelease(note, duration);
+            } catch (e) {}
+        }
+
+        let moveLeft = false;
+        let moveRight = false;
+
+        const leftBtn = document.getElementById('leftBtn');
+        const rightBtn = document.getElementById('rightBtn');
+
+        leftBtn.addEventListener('touchstart', (e) => { e.preventDefault(); moveLeft = true; });
+        leftBtn.addEventListener('touchend', () => moveLeft = false);
+        leftBtn.addEventListener('mousedown', () => moveLeft = true);
+        leftBtn.addEventListener('mouseup', () => moveLeft = false);
+
+        rightBtn.addEventListener('touchstart', (e) => { e.preventDefault(); moveRight = true; });
+        rightBtn.addEventListener('touchend', () => moveRight = false);
+        rightBtn.addEventListener('mousedown', () => moveRight = true);
+        rightBtn.addEventListener('mouseup', () => moveRight = false);
+
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowLeft' || e.key === 'a') moveLeft = true;
+            if (e.key === 'ArrowRight' || e.key === 'd') moveRight = true;
+        });
+        window.addEventListener('keyup', (e) => {
+            if (e.key === 'ArrowLeft' || e.key === 'a') moveLeft = false;
+            if (e.key === 'ArrowRight' || e.key === 'd') moveRight = false;
+        });
+
+        canvas.addEventListener('mousemove', (e) => {
+            if (!gameRunning || questionLocked) return;
+            const rect = canvas.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            player.x = mouseX - player.width / 2;
+            if (player.x < 0) player.x = 0;
+            if (player.x > canvas._logicalWidth - player.width) {
+                player.x = canvas._logicalWidth - player.width;
+            }
+        });
+
+        canvas.addEventListener('touchmove', (e) => {
+            if (!gameRunning || questionLocked) return;
+            const rect = canvas.getBoundingClientRect();
+            const touchX = e.touches[0].clientX - rect.left;
+            player.x = touchX - player.width / 2;
+            if (player.x < 0) player.x = 0;
+            if (player.x > canvas._logicalWidth - player.width) {
+                player.x = canvas._logicalWidth - player.width;
+            }
+        }, { passive: true });
+
+        function setupQuestion() {
+            if (currentQIndex >= questionsWithAnswers.length) {
+                endGame(true);
+                return;
+            }
+            questionLocked = false;
+            items = [];
+            const q = questionsWithAnswers[currentQIndex];
+            currentQuestionBanner.innerText = `السؤال (${currentQIndex + 1}/${questionsWithAnswers.length}): ${q.question}`;
+            
+            pendingAnswers = [];
+            q.correct.forEach(ans => {
+                pendingAnswers.push({ text: ans, isCorrect: true });
+            });
+            q.incorrect.forEach(ans => {
+                pendingAnswers.push({ text: ans, isCorrect: false });
+            });
+
+            pendingAnswers.sort(() => Math.random() - 0.5);
+
+            timeLeft = 25;
+            updateTimerDisplay();
+            if (gameTimerInterval) clearInterval(gameTimerInterval);
+            gameTimerInterval = setInterval(() => {
+                if (!gameRunning || questionLocked) return;
+                timeLeft--;
+                updateTimerDisplay();
+                if (timeLeft <= 0) {
+                    clearInterval(gameTimerInterval);
+                    currentQIndex++;
+                    setupQuestion();
+                }
+            }, 1000);
+        }
+
+        function updateTimerDisplay() {
+            timerVal.innerText = timeLeft + 'ث';
+            const pct = (timeLeft / 25) * 100;
+            timerBar.style.width = pct + '%';
+        }
+
+        function startGame() {
+            if (Tone.context.state !== 'running') {
+                Tone.start();
+            }
+            gameRunId++;
+            score = 0;
+            currentQIndex = 0;
+            scoreVal.innerText = score;
+            overlay.classList.add('opacity-0', 'pointer-events-none');
+            gameRunning = true;
+            items = [];
+            particles = [];
+            caughtPopups = [];
+            spawnTimer = 0;
+            resizeCanvas();
+            setupQuestion();
+            if (animationFrameId) cancelAnimationFrame(animationFrameId);
+            gameLoop();
+        }
+
+        function endGame(won) {
+            gameRunning = false;
+            if (gameTimerInterval) clearInterval(gameTimerInterval);
+            overlay.classList.remove('opacity-0', 'pointer-events-none');
+            if (won) {
+                overlayIcon.innerText = '🏆';
+                overlayTitle.innerText = 'مبروك! أتممت المسابقة بنجاح';
+                overlayDesc.innerText = `لقد جمعت ${score} نقطة بكل إتقان وتفوق!`;
+                actionBtn.innerText = 'العب مرة أخرى 🔄';
+                playSound('C6', '4n');
+            } else {
+                overlayIcon.innerText = '⭐';
+                overlayTitle.innerText = 'انتهت المسابقة';
+                overlayDesc.innerText = `حاول مرة أخرى لتحقيق نتيجة أفضل. مجموع نقاطك: ${score}`;
+                actionBtn.innerText = 'إعادة اللعب 🚀';
+                playSound('G3', '4n');
+            }
+        }
+
+        function spawnItem() {
+            if (pendingAnswers.length === 0 || questionLocked) return;
+
+            const ansObj = pendingAnswers.pop();
+            const padding = 70;
+            const x = Math.random() * (canvas._logicalWidth - padding * 2) + padding;
+            const radius = 38;
+
+            items.push({
+                x: x,
+                y: -50,
+                radius: radius,
+                text: ansObj.text,
+                isCorrect: ansObj.isCorrect,
+                speed: 1.6 + Math.random() * 0.8,
+                hitState: null,
+                hitTimer: 0,
+                qIndex: currentQIndex
+            });
+        }
+
+        function createParticles(x, y, isCorrect) {
+            const color = isCorrect ? '#22c55e' : '#ef4444';
+            for (let i = 0; i < 12; i++) {
+                particles.push({
+                    x: x,
+                    y: y,
+                    vx: (Math.random() - 0.5) * 5,
+                    vy: (Math.random() - 0.5) * 5,
+                    radius: Math.random() * 4 + 2,
+                    color: color,
+                    alpha: 1
+                });
+            }
+        }
+
+        function getLines(ctx, text, maxWidth) {
+            const words = text.split(' ');
+            let lines = [];
+            let currentLine = words[0];
+
+            for (let i = 1; i < words.length; i++) {
+                let width = ctx.measureText(currentLine + " " + words[i]).width;
+                if (width < maxWidth) {
+                    currentLine += " " + words[i];
+                } else {
+                    lines.push(currentLine);
+                    currentLine = words[i];
+                }
+            }
+            lines.push(currentLine);
+            return lines;
+        }
+
+        function update() {
+            if (!gameRunning) return;
+
+            if (moveLeft && !questionLocked) {
+                player.x -= player.speed;
+            }
+            if (moveRight && !questionLocked) {
+                player.x += player.speed;
+            }
+            if (player.x < 0) player.x = 0;
+            if (player.x > canvas._logicalWidth - player.width) {
+                player.x = canvas._logicalWidth - player.width;
+            }
+
+            if (!questionLocked) {
+                spawnTimer++;
+                if (spawnTimer > 80 && pendingAnswers.length > 0) {
+                    spawnItem();
+                    spawnTimer = 0;
+                }
+            }
+
+            for (let i = items.length - 1; i >= 0; i--) {
+                let item = items[i];
+                if (!item) continue;
+                
+                if (item.hitState) {
+                    item.hitTimer++;
+                    if (item.hitTimer > 15) {
+                        items.splice(i, 1);
+                    }
+                    continue;
+                }
+
+                item.y += item.speed;
+
+                // منطقة التقاط أصغر من شكل السلة: فتحة السلة فقط، وبهامش من الجوانب
+                const hitX = player.x + 18;
+                const hitW = player.width - 36;
+                const hitY = player.y + 8;
+                const hitH = 22;
+                const hitR = item.radius * 0.6; // نتجاهل حواف الفقاعة الخارجية
+                let closestX = Math.max(hitX, Math.min(item.x, hitX + hitW));
+                let closestY = Math.max(hitY, Math.min(item.y, hitY + hitH));
+                let distanceX = item.x - closestX;
+                let distanceY = item.y - closestY;
+                let distanceSquared = (distanceX * distanceX) + (distanceY * distanceY);
+
+                if (distanceSquared < (hitR * hitR)) {
+                    if (item.isCorrect) {
+                        item.hitState = 'correct';
+                        score += 10;
+                        scoreVal.innerText = score;
+                        playSound('E5', '8n');
+                        createParticles(item.x, item.y, true);
+                        caughtPopups.push({
+                            text: "+10 ممتاز!",
+                            x: item.x,
+                            y: item.y,
+                            alpha: 1,
+                            color: '#22c55e'
+                        });
+
+                        questionLocked = true;
+                        items = [];
+                        if (gameTimerInterval) clearInterval(gameTimerInterval);
+                        const runId = gameRunId;
+                        setTimeout(() => {
+                            if (runId !== gameRunId || !gameRunning) return;
+                            currentQIndex++;
+                            setupQuestion();
+                        }, 1200);
+                        break; // items تم تفريغها، نوقف الحلقة لتجنب الخطأ الذي كان يعلّق اللعبة
+
+                    } else {
+                        item.hitState = 'incorrect';
+                        score = Math.max(0, score - 5);
+                        scoreVal.innerText = score;
+                        playSound('C3', '8n');
+                        createParticles(item.x, item.y, false);
+                        caughtPopups.push({
+                            text: "خطأ (-5)",
+                            x: item.x,
+                            y: item.y,
+                            alpha: 1,
+                            color: '#ef4444'
+                        });
+                        setTimeout(() => {
+                            const index = items.indexOf(item);
+                            if (index > -1) items.splice(index, 1);
+                        }, 250);
+                    }
+                }
+
+                if (item.y > canvas._logicalHeight + item.radius) {
+                    items.splice(i, 1);
+                    // الإجابة الصحيحة التي فاتت تعود للنزول من جديد
+                    if (item.isCorrect && item.qIndex === currentQIndex && !questionLocked) {
+                        pendingAnswers.push({ text: item.text, isCorrect: true });
+                        spawnTimer = 40; // فاصل قصير قبل عودتها
+                    }
+                }
+            }
+
+            for (let i = particles.length - 1; i >= 0; i--) {
+                let p = particles[i];
+                p.x += p.vx;
+                p.y += p.vy;
+                p.alpha -= 0.03;
+                if (p.alpha <= 0) {
+                    particles.splice(i, 1);
+                }
+            }
+
+            for (let i = caughtPopups.length - 1; i >= 0; i--) {
+                let pop = caughtPopups[i];
+                pop.y -= 1.5;
+                pop.alpha -= 0.025;
+                if (pop.alpha <= 0) {
+                    caughtPopups.splice(i, 1);
+                }
+            }
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas._logicalWidth, canvas._logicalHeight);
+
+            // رسم السلة الكبيرة والواضحة (بدون مستطيل خلفي نهائياً)
+            ctx.save();
+            ctx.shadowColor = 'rgba(219, 39, 119, 0.3)';
+            ctx.shadowBlur = 15;
+            
+            // سلة منسوجة بجمالية عالية
+            ctx.fillStyle = '#d97706'; // لون خشبي دافئ
+            ctx.beginPath();
+            ctx.roundRect(player.x, player.y + 10, player.width, player.height - 10, 12);
+            ctx.fill();
+
+            // حافة السلة العلويّة
+            ctx.fillStyle = '#b45309';
+            ctx.beginPath();
+            ctx.roundRect(player.x - 4, player.y, player.width + 8, 14, 7);
+            ctx.fill();
+
+            // مقبض السلة (العروة)
+            ctx.strokeStyle = '#92400e';
+            ctx.lineWidth = 4;
+            ctx.beginPath();
+            ctx.arc(player.x + player.width / 2, player.y, 24, Math.PI, 0, false);
+            ctx.stroke();
+
+            // أيقونة السلة بالداخل
+            ctx.fillStyle = '#ffffff';
+            ctx.font = 'bold 24px "Cairo", sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('🧺', player.x + player.width / 2, player.y + player.height / 2 + 6);
+            ctx.restore();
+
+            for (let item of items) {
+                ctx.save();
+                ctx.shadowColor = 'rgba(0,0,0,0.15)';
+                ctx.shadowBlur = 8;
+
+                let fillColor = '#fef08a';
+                let textColor = '#713f12';
+
+                if (item.hitState === 'correct') {
+                    fillColor = '#22c55e';
+                    textColor = '#ffffff';
+                } else if (item.hitState === 'incorrect') {
+                    fillColor = '#ef4444';
+                    textColor = '#ffffff';
+                }
+
+                ctx.fillStyle = fillColor;
+                ctx.strokeStyle = '#ffffff';
+                ctx.lineWidth = 4;
+
+                ctx.beginPath();
+                ctx.arc(item.x, item.y, item.radius, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.stroke();
+
+                ctx.fillStyle = textColor;
+                ctx.font = 'bold 12px "Cairo", sans-serif';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+
+                const lines = getLines(ctx, item.text, item.radius * 1.5);
+                if (lines.length === 1) {
+                    ctx.fillText(lines[0], item.x, item.y);
+                } else {
+                    ctx.fillText(lines[0], item.x, item.y - 7);
+                    ctx.fillText(lines[1], item.x, item.y + 9);
+                }
+                ctx.restore();
+            }
+
+            for (let p of particles) {
+                ctx.save();
+                ctx.globalAlpha = p.alpha;
+                ctx.fillStyle = p.color;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            }
+
+            for (let pop of caughtPopups) {
+                ctx.save();
+                ctx.globalAlpha = pop.alpha;
+                ctx.fillStyle = pop.color;
+                ctx.font = 'bold 16px "Cairo", sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillText(pop.text, pop.x, pop.y);
+                ctx.restore();
+            }
+        }
+
+        function gameLoop() {
+            update();
+            draw();
+            if (gameRunning) {
+                animationFrameId = requestAnimationFrame(gameLoop);
+            }
+        }
+    </script>
+</body>
+</html>
